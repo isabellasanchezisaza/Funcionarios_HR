@@ -235,8 +235,7 @@ public class FuncionarioDAO {
         f.setEstudios(listarEstudios(conn, id));
         return f;
         } catch (SQLException e) {
-            System.out.println("Detalle del error SQL: " + e.getMessage());
-        throw new DAOException("Error al buscar el funcionario.", e);
+            throw new DAOException("Error al buscar el funcionario.", e);
         }
     }
 

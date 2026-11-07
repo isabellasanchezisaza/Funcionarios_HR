@@ -4,70 +4,80 @@
  */
 package seguridad;
 import modelo.Usuarios;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 /**
  *
  * @author Usuario
  */
-public class SesionUsuario {
-    private static Usuarios usuarioActual = null;
-    private static LocalDateTime ultimaActividad = null;
-    private static final int TIMEOUT_MINUTOS = 15;
-    
-    public static void IniciarSesión(Usuarios usuario) {
+public final class SesionUsuario {
+
+    public static final int TIMEOUT_SEGUNDOS = 15 * 60;
+
+    private static Usuarios usuarioActual;
+    private static long ultimaActividadNs;
+
+    private SesionUsuario() { }
+
+    public static synchronized void iniciarSesion(Usuarios usuario) {
         usuarioActual = usuario;
-        ultimaActividad = LocalDateTime.now();
+        ultimaActividadNs = System.nanoTime();
     }
-    
-    public static void cerrarSesion() {
+
+    public static synchronized void cerrarSesion() {
         usuarioActual = null;
-        ultimaActividad = null;
     }
-    
-    public static Usuarios getUsuarioActual() {
-        actualizarActividad();
-        return usuarioActual;
-    }
-    
-    public static boolean estaAutenticado() {
+
+    public static synchronized long segundosRestantes() {
         if (usuarioActual == null) {
-        return false;
+            return 0;
+        }
+        long transcurridos = (System.nanoTime() - ultimaActividadNs) / 1_000_000_000L;
+        return Math.max(0, TIMEOUT_SEGUNDOS - transcurridos);
     }
-        
-        if(ultimaActividad != null && ChronoUnit.MINUTES.between(ultimaActividad, LocalDateTime.now()) >= TIMEOUT_MINUTOS) {
-        cerrarSesion();
-        return false;
-    }
-    
-        actualizarActividad();
+
+    public static synchronized boolean estaAutenticado() {
+        if (usuarioActual == null) {
+            return false;
+        }
+        if (segundosRestantes() == 0) {
+            cerrarSesion();
+            return false;
+        }
         return true;
     }
-    
-        public static void actualizarActividad() {
-            if (usuarioActual != null) {
-                ultimaActividad = LocalDateTime.now();
-            }
+
+    public static synchronized void actualizarActividad() {
+        if (usuarioActual != null && segundosRestantes() > 0) {
+            ultimaActividadNs = System.nanoTime();
         }
-        
-    public static String getRolActual() {
-        if (usuarioActual != null && usuarioActual.getRol() != null) {
-        return usuarioActual.getRol().getNombre();
     }
-    return null;
-  }
-    
-    public static boolean tienePermiso(String permiso) {
+
+    public static synchronized Usuarios getUsuarioActual() {
+        return usuarioActual;
+    }
+
+    public static synchronized String getNombreUsuario() {
+        return usuarioActual != null ? usuarioActual.getUsername() : "desconocido";
+    }
+
+    public static synchronized String getRolActual() {
+        if (usuarioActual != null && usuarioActual.getRol() != null) {
+            return usuarioActual.getRol().getNombre();
+        }
+        return null;
+    }
+
+    public static synchronized boolean tienePermiso(Permiso permiso) {
+        if (!estaAutenticado()) {
+            return false;
+        }
         String rol = getRolActual();
-        if (rol == null) return false;
-        
-        rol = rol.toUpperCase();
-        permiso = permiso.toUpperCase();
-        
-        return switch (rol) {
+        if (rol == null) {
+            return false;
+        }
+        return switch (rol.toUpperCase()) {
             case "ADMIN" -> true;
-            case "RRHH" -> !permiso.equals("ELIMINAR");
-            case "CONSULTOR" -> permiso.equals("LISTAR") || permiso.equals("VER");
+            case "RRHH" -> permiso != Permiso.ELIMINAR;
+            case "CONSULTOR" -> permiso == Permiso.LISTAR || permiso == Permiso.VER;
             default -> false;
         };
     }

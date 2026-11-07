@@ -22,7 +22,7 @@ public class TipoDocumentoDAO {
     private static final String SQL_LISTAR =
             "SELECT id, nombre FROM tipo_documento ORDER BY nombre";
 
-    public List<TipoDocumento> listar() throws DAOException, SQLException {
+    public List<TipoDocumento> listar() throws DAOException {
         List<TipoDocumento> lista = new ArrayList<>();
         try (Connection conn = Conexion.getConexion();
              PreparedStatement ps = conn.prepareStatement(SQL_LISTAR);

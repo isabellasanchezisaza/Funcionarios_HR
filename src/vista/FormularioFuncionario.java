@@ -10,7 +10,6 @@ package vista;
  */
 
 import dao.EstadoCivilDAO;
-import dao.FuncionarioDAO;
 import dao.NivelEstudioDAO;
 import dao.RolFamiliarDAO;
 import dao.TipoDocumentoDAO;
@@ -45,6 +44,12 @@ import modelo.GrupoFamiliar;
 import modelo.NivelEstudio;
 import modelo.RolFamiliar;
 import modelo.TipoDocumento;
+import excepciones.AutorizacionException;
+import java.awt.Color;
+import javax.swing.BorderFactory;
+import javax.swing.JComponent;
+import javax.swing.border.TitledBorder;
+import servicios.FuncionarioServicio;
 
 /**
  * Formulario
@@ -52,7 +57,12 @@ import modelo.TipoDocumento;
 public class FormularioFuncionario extends JDialog {
 
     private final Funcionarios original;
-    private final FuncionarioDAO dao = new FuncionarioDAO();
+    private final FuncionarioServicio servicio = new FuncionarioServicio();
+    private final boolean soloLectura;
+
+    private final JButton btnGuardar = Estilo.boton("Guardar", Estilo.EXITO);
+    private final JButton btnCancelar = Estilo.boton("Cancelar", Estilo.NEUTRO);
+    private final List<JButton> botonesEdicion = new ArrayList<>();
 
     // Campos Datos personales
     private final JComboBox<TipoDocumento> cmbTipoDocumento = new JComboBox<>();
@@ -81,15 +91,22 @@ public class FormularioFuncionario extends JDialog {
     private final JTable tblEst = new JTable(modeloEst);
 
     public FormularioFuncionario(JFrame padre, Funcionarios funcionario) {
+    this(padre, funcionario, false);
+}
+
+    public FormularioFuncionario(JFrame padre, Funcionarios funcionario, boolean soloLectura) {
         super(padre, true);
         this.original = funcionario;
-        setTitle(funcionario == null ? "Nuevo funcionario" : "Editar funcionario");
+        this.soloLectura = soloLectura;
+        setTitle(soloLectura ? "Detalle del funcionario"
+            : funcionario == null ? "Nuevo funcionario" : "Editar funcionario");
         setSize(900, 650);
         setLocationRelativeTo(padre);
+        getContentPane().setBackground(Estilo.FONDO);
 
         construirInterfaz();
         cargarCombos();
-        
+
         tblFam.getColumnModel().getColumn(2).setCellEditor(new DefaultCellEditor(cmbSexoFam));
         tblFam.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(cmbRol));
         tblEst.getColumnModel().getColumn(1).setCellEditor(new DefaultCellEditor(cmbNivel));
@@ -97,53 +114,71 @@ public class FormularioFuncionario extends JDialog {
         if (original != null) {
             llenarCampos();
         }
+        if (soloLectura) {
+            aplicarModoLectura();
+        }
     }
 
     //Intz
     private void construirInterfaz() {
-        JPanel datos = new JPanel(new GridLayout(0, 4, 8, 8));
-        datos.setBorder(new EmptyBorder(10, 10, 10, 10));
-        datos.add(new JLabel("Tipo de documento:"));
-        datos.add(cmbTipoDocumento);
-        datos.add(new JLabel("Número:"));
-        datos.add(txtNumero);
-        datos.add(new JLabel("Nombres:"));
-        datos.add(txtNombres);
-        datos.add(new JLabel("Apellidos:"));
-        datos.add(txtApellidos);
-        datos.add(new JLabel("Estado civil:"));
-        datos.add(cmbEstadoCivil);
-        datos.add(new JLabel("Sexo (M/F):"));
-        datos.add(cmbSexo);
-        datos.add(new JLabel("Dirección:"));
-        datos.add(txtDireccion);
-        datos.add(new JLabel("Teléfono:"));
-        datos.add(txtTelefono);
-        datos.add(new JLabel("Nacimiento (AAAA-MM-DD):"));
-        datos.add(txtFecha);
-        datos.add(new JLabel("Correo:"));
-        datos.add(txtCorreo);
+        JPanel datos = new JPanel(new GridLayout(0, 4, 10, 10));
+        datos.setBackground(Color.WHITE);
+        datos.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder(
+                    BorderFactory.createLineBorder(new Color(0xD1D5DB)), " Datos personales ",
+                    TitledBorder.LEFT, TitledBorder.TOP, Estilo.FUENTE_NEGRITA, Estilo.ENCABEZADO),
+            new EmptyBorder(8, 10, 10, 10)));
+        agregar(datos, "Tipo de documento:", cmbTipoDocumento);
+        agregar(datos, "Número:", txtNumero);
+        agregar(datos, "Nombres:", txtNombres);
+        agregar(datos, "Apellidos:", txtApellidos);
+        agregar(datos, "Estado civil:", cmbEstadoCivil);
+        agregar(datos, "Sexo (M/F):", cmbSexo);
+        agregar(datos, "Dirección:", txtDireccion);
+        agregar(datos, "Teléfono:", txtTelefono);
+        agregar(datos, "Nacimiento (AAAA-MM-DD):", txtFecha);
+        agregar(datos, "Correo:", txtCorreo);
+        txtFecha.setToolTipText("Formato AAAA-MM-DD, por ejemplo 1995-03-27");
 
         JTabbedPane pestanas = new JTabbedPane();
+        pestanas.setFont(Estilo.FUENTE_NEGRITA);
         pestanas.addTab("Grupo familiar", crearPanelFamilia());
         pestanas.addTab("Formación académica", crearPanelEstudios());
 
-        JButton btnGuardar = new JButton("Guardar");
-        JButton btnCancelar = new JButton("Cancelar");
         btnGuardar.addActionListener(e -> guardar());
         btnCancelar.addActionListener(e -> dispose());
-        JPanel inferior = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel inferior = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        inferior.setOpaque(false);
         inferior.add(btnCancelar);
         inferior.add(btnGuardar);
 
-        add(datos, BorderLayout.NORTH);
-        add(pestanas, BorderLayout.CENTER);
-        add(inferior, BorderLayout.SOUTH);
+        add(conMargen(datos, 12, 12, 6, 12), BorderLayout.NORTH);
+        add(conMargen(pestanas, 0, 12, 0, 12), BorderLayout.CENTER);
+        add(conMargen(inferior, 10, 12, 12, 12), BorderLayout.SOUTH);
+    }
+
+    private void agregar(JPanel panel, String texto, JComponent campo) {
+        JLabel etiqueta = new JLabel(texto);
+        etiqueta.setFont(Estilo.FUENTE);
+        etiqueta.setForeground(Estilo.TEXTO);
+        panel.add(etiqueta);
+        panel.add(campo);
+    }
+
+    private JPanel conMargen(JComponent contenido, int arriba, int izq, int abajo, int der) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.setBorder(new EmptyBorder(arriba, izq, abajo, der));
+        p.add(contenido);
+        return p;
     }
 
     private JPanel crearPanelFamilia() {
-        JButton btnAgregar = new JButton("Agregar familiar");
-        JButton btnQuitar = new JButton("Quitar familiar");
+        JButton btnAgregar = Estilo.boton("Agregar familiar", Estilo.PRIMARIO);
+        JButton btnQuitar = Estilo.boton("Quitar familiar", Estilo.PELIGRO);
+        botonesEdicion.add(btnAgregar);
+        botonesEdicion.add(btnQuitar);
+        Estilo.tabla(tblFam);
 
         btnAgregar.addActionListener(e ->
                 modeloFam.addRow(new Object[]{"", "", "M", "", "", cmbRol.getItemAt(0)}));
@@ -166,8 +201,11 @@ public class FormularioFuncionario extends JDialog {
     }
 
     private JPanel crearPanelEstudios() {
-        JButton btnAgregar = new JButton("Agregar estudio");
-        JButton btnQuitar = new JButton("Quitar estudio");
+        JButton btnAgregar = Estilo.boton("Agregar estudio", Estilo.PRIMARIO);
+        JButton btnQuitar = Estilo.boton("Quitar estudio", Estilo.PELIGRO);
+        botonesEdicion.add(btnAgregar);
+        botonesEdicion.add(btnQuitar);
+        Estilo.tabla(tblEst);
 
         btnAgregar.addActionListener(e ->
                 modeloEst.addRow(new Object[]{"", cmbNivel.getItemAt(0), "",
@@ -313,6 +351,21 @@ public class FormularioFuncionario extends JDialog {
         }
         return lista;
     }
+    
+    private void aplicarModoLectura() {
+        for (JTextField t : new JTextField[]{txtNumero, txtNombres, txtApellidos,
+                txtDireccion, txtTelefono, txtFecha, txtCorreo}) {
+            t.setEditable(false);
+    }
+        cmbTipoDocumento.setEnabled(false);
+        cmbEstadoCivil.setEnabled(false);
+        cmbSexo.setEnabled(false);
+        tblFam.setEnabled(false);
+        tblEst.setEnabled(false);
+        botonesEdicion.forEach(b -> b.setVisible(false));
+        btnGuardar.setVisible(false);
+        btnCancelar.setText("Cerrar");
+    }
 
    //Guardar.
     private void guardar() {
@@ -335,10 +388,10 @@ public class FormularioFuncionario extends JDialog {
             f.setEstudios(leerEstudios());
 
             if (original == null) {
-                dao.insertar(f);
+                servicio.registrarFuncionario(f);
                 JOptionPane.showMessageDialog(this, "Funcionario creado correctamente.");
             } else {
-                dao.actualizar(f);
+                servicio.actualizarFuncionario(f);
                 JOptionPane.showMessageDialog(this, "Funcionario actualizado correctamente.");
             }
             dispose();
@@ -358,6 +411,11 @@ public class FormularioFuncionario extends JDialog {
             JOptionPane.showMessageDialog(this,
                     "Ya existe un funcionario con ese tipo y número de documento.",
                     "Documento duplicado", JOptionPane.WARNING_MESSAGE);
+            
+        } catch (AutorizacionException e) {
+            JOptionPane.showMessageDialog(this, e.getMessage(),
+            "Acceso denegado", JOptionPane.WARNING_MESSAGE);
+            
         } catch (DAOException e) {
             JOptionPane.showMessageDialog(this,
                     "Error de base de datos: " + e.getMessage(),

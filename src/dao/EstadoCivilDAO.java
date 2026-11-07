@@ -22,7 +22,7 @@ public class EstadoCivilDAO {
     private static final String SQL_LISTAR =
             "SELECT id, nombre FROM estado_civil ORDER BY nombre";
 
-    public List<EstadoCivil> listar() throws DAOException, SQLException {
+    public List<EstadoCivil> listar() throws DAOException {
         List<EstadoCivil> lista = new ArrayList<>();
         try (Connection conn = Conexion.getConexion();
              PreparedStatement ps = conn.prepareStatement(SQL_LISTAR);
