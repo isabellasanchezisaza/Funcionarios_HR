@@ -45,7 +45,7 @@ public class FuncionarioDAO {
     private static final String SQL_FAMILIARES =
         "SELECT g.id, g.nombre, g.apellidos, g.sexo, g.fecha_nacimiento, g.telefono, "
         + "r.id AS id_rol, r.nombre AS rol "
-        + "FROM grupo_familiar g JOIN rol_familia r ON r.id = g.id_rol_familiar "
+        + "FROM grupo_familiar g JOIN rol_familiar r ON r.id = g.id_rol_familiar "
         + "WHERE g.id_funcionario = ? ORDER BY g.id";
 
     private static final String SQL_ESTUDIOS =
@@ -122,7 +122,8 @@ public class FuncionarioDAO {
     }
 
     // ---------- INSERTAR (con transacción) ----------
-    public void insertar(Funcionarios f) throws DAOException {
+    public void insertar(Funcionarios f) throws DAOException, ValidacionException{
+        ValidadorFuncionario.validar(f);
         Connection conn = null;
         try {
             conn = Conexion.getConexion();
